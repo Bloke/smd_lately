@@ -17,9 +17,9 @@ $plugin['name'] = 'smd_lately';
 // 1 = Plugin help is in raw HTML.  Not recommended.
 # $plugin['allow_html_help'] = 1;
 
-$plugin['version'] = '0.31';
+$plugin['version'] = '0.4.0';
 $plugin['author'] = 'Stef Dawson';
-$plugin['author_uri'] = 'http://stefdawson.com/';
+$plugin['author_uri'] = 'https://stefdawson.com/';
 $plugin['description'] = 'Show recently viewed/popular articles';
 
 // Plugin load order:
@@ -77,49 +77,52 @@ if (!defined('txpinterface'))
  * A Textpattern CMS plugin for displaying recent visitor stats, or page hits.
  *
  * @author Stef Dawson
- * @link   http://stefdawson.com/
+ * @link   https://stefdawson.com/
  */
-function smd_lately($atts, $thing=NULL) {
+function smd_lately ($atts, $thing = null)
+{
 	global $prefs, $thisarticle, $permlink_mode;
 
-	// Check logging is on
+	// Check logging is on.
 	if ( $prefs['logging'] != 'all') {
 		trigger_error(smd_rv_gTxt('logging_enabled'), E_USER_NOTICE);
 		return;
 	}
 
 	extract(lAtts(array(
-		'by' => 'SMD_CURRENT', // Default is the IP address of the current visitor. Can be empty for 'all' visitors
-		'section' => '',
-		'status' => '',
-		'time' => 'past',
-		'include' => '',
-		'exclude' => '',
-		'within' => '',
-		'from' => '',
-		'to' => '',
+		'by'           => 'SMD_CURRENT', // Default is the IP address of the current visitor. Can be empty for 'all' visitors
+		'section'      => '',
+		'status'       => '',
+		'time'         => 'past',
+		'include'      => '',
+		'exclude'      => '',
+		'within'       => '',
+		'from'         => '',
+		'to'           => '',
 		'show_current' => 0,
-		'form' => '',
-		'limit' => 10,
-		'sort' => 'time desc',
-		'wraptag' => '',
-		'break' => 'br',
-		'class' => __FUNCTION__,
+		'form'         => '',
+		'limit'        => 10,
+		'sort'         => 'time desc',
+		'wraptag'      => '',
+		'break'        => 'br',
+		'class'        => __FUNCTION__,
 		'active_class' => 'active',
-		'label' => '',
-		'labeltag' => '',
-		'delim' => ',',
-		'param_delim' => ':',
-		'silent' => 0,
-		'cache_time' => '0', // in seconds
-		'hashsize' => '6:5',
-		'debug' => 0,
+		'label'        => '',
+		'labeltag'     => '',
+		'delim'        => ',',
+		'param_delim'  => ':',
+		'silent'       => 0,
+		'cache_time'   => '0', // in seconds
+		'hashsize'     => '6:5',
+		'debug'        => 0,
 	), $atts));
 
-	// Make a unique hash value for this instance so the results can be cached in a file
+	// Make a unique hash value for this instance so the results can be cached in a file.
 	$uniq = '';
 	$md5 = md5($by.$sort.$section.$within.$from.$to.$include.$exclude);
+
 	list($hashLen, $hashSkip) = explode(':', $hashsize);
+
 	for ($idx = 0, $cnt = 0; $cnt < $hashLen; $cnt++, $idx = (($idx+$hashSkip) % strlen($md5))) {
 		$uniq .= $md5[$idx];
 	}
@@ -129,15 +132,16 @@ function smd_lately($atts, $thing=NULL) {
 	$lastmod = get_pref($var_lastmod, 0);
 	$read_cache = (($cache_time > 0) && ((time() - $lastmod) < $cache_time)) ? true : false;
 
-	// Sanitize sort options
+	// Sanitize sort options.
 	$sortBits = do_list($sort, " ");
 	$sortBits[0] = (empty($sortBits[0])) ? 'time' : $sortBits[0];
+
 	if (!isset($sortBits[1]) || !in_array($sortBits[1], array('desc', 'asc'))) {
 		$sortBits[1] = 'desc';
 		$sort = join(" ", $sortBits);
 	}
 
-	// Make a note of the current article if appropriate
+	// Make a note of the current article if appropriate.
 	if ($permlink_mode=='messy') {
 		$match_col = 'ID';
 		$match_tacol = 'thisid';
@@ -146,6 +150,7 @@ function smd_lately($atts, $thing=NULL) {
 		$match_col = $match_tacol = 'url_title';
 		$match_prefix = '';
 	}
+
 	$curr_art = ($thisarticle) ? $thisarticle[$match_tacol] : '';
 
 	if ($read_cache) {
@@ -153,26 +158,30 @@ function smd_lately($atts, $thing=NULL) {
 	} else {
 		// IP address clause
 		$ip = '';
+
 		if ($by == 'SMD_CURRENT') {
 			if (function_exists('remote_addr')) {
 				$ip = remote_addr();
 			} else {
 				$ip = serverSet('REMOTE_ADDR');
+
 				if (($ip == '127.0.0.1' || $ip == serverSet('SERVER_ADDR')) && serverSet('HTTP_X_FORWARDED_FOR')) {
 					$ips = explode(', ', serverSet('HTTP_X_FORWARDED_FOR'));
 					$ip = $ips[0];
 				}
 			}
+
 			if ($ip) {
 				$ip = " AND ip='".doSlash($ip)."'";
 			}
-		} else if ($by == 'SMD_ALL') {
+		} elseif ($by == 'SMD_ALL') {
 			$by = '';
 		}
 
 		// Make sure we don't include the current article
-		// Note the regexp is anchored to the end with a $
+		// Note the regexp is anchored to the end with a $.
 		$thisicle = '';
+
 		if (isset($thisarticle)) {
 			if (!$show_current) {
 				$urltitle = $thisarticle[$match_tacol];
@@ -180,7 +189,7 @@ function smd_lately($atts, $thing=NULL) {
 			}
 		}
 
-		// Filter out article_list pages and other (un)desirables
+		// Filter out article_list pages and other (un)desirables.
 		$rules = array(
 			"page NOT LIKE '/'", // Goodbye front page
 			"page NOT LIKE ''",
@@ -196,6 +205,7 @@ function smd_lately($atts, $thing=NULL) {
 		if ($section) {
 			$section = do_list($section, $delim);
 			$subrule = array();
+
 			foreach ($section as $sec) {
 				if ($permlink_mode == 'messy') {
 					$subrule[] = "page LIKE '%s=$sec%'";
@@ -203,23 +213,26 @@ function smd_lately($atts, $thing=NULL) {
 					$subrule[] = "page LIKE '/$sec%' AND page NOT REGEXP '^/$sec/?$'";
 				}
 			}
+
 			$subrule = '(' . join(' OR ', $subrule) . ')';
 			$rules[] = $subrule;
 		} else {
-			// Exclude any rows that just contain the section (i.e. article list pages)
+			// Exclude any rows that just contain the section (i.e. article list pages).
 			$allSecs = safe_column('name', 'txp_section', "1=1", $debug);
 			$rules[] = "page NOT REGEXP '^/(" . join("|", $allSecs) . ")/?$'";
 		}
 
-		// Process any manual includes
+		// Process any manual includes.
 		if ($include) {
 			$include = do_list($include, $delim);
 			$subrules = array();
+
 			foreach ($include as $inc) {
 				$regex = $like = false;
 				$column = 'ip';
 				$parts = do_list($inc, $param_delim);
 				$match = array_pop($parts);
+
 				foreach ($parts as $part) {
 					switch ($part) {
 						case "ip":
@@ -237,19 +250,23 @@ function smd_lately($atts, $thing=NULL) {
 							break;
 					}
 				}
+
 				$subrules[] = $regex ? "$column REGEXP '".doSlash(preg_quote($match))."'" : (($like) ? "$column LIKE '%".doSlash($match)."%'" : "$column = '".doSlash($match)."'");
 			}
+
 			$rules[] = '('.join(' OR ', $subrules).')';
 		}
 
-		// Process any manual excludes
+		// Process any manual excludes.
 		if ($exclude) {
 			$exclude = do_list($exclude, $delim);
+
 			foreach ($exclude as $exc) {
 				$regex = $like = false;
 				$column = 'ip';
 				$parts = do_list($exc, $param_delim);
 				$match = array_pop($parts);
+
 				foreach ($parts as $part) {
 					switch ($part) {
 						case "ip":
@@ -267,18 +284,21 @@ function smd_lately($atts, $thing=NULL) {
 							break;
 					}
 				}
+
 				$rules[] = $regex ? "$column NOT REGEXP '".doSlash(preg_quote($match))."'" : (($like) ? "$column NOT LIKE '%".doSlash($match)."%'" : "$column != '".doSlash($match)."'");
 			}
 		}
 
-		// Filter by time frame
+		// Filter by time frame.
 		$fromstamp = $tostamp = $diffstamp = 0;
 		$thismonth = date('F', mktime(0,0,0,strftime('%m'),1));
 		$thisyear = strftime('%Y');
+
 		if ($from) {
 			$from = str_replace("?month", $thismonth, $from);
 			$from = str_replace("?year", $thisyear, $from);
 			$fromstamp = strtotime($from);
+
 			if ($fromstamp) {
 				$rules[] = "UNIX_TIMESTAMP(time) > $fromstamp";
 			} else {
@@ -287,10 +307,12 @@ function smd_lately($atts, $thing=NULL) {
 				}
 			}
 		}
+
 		if ($to) {
 			$to = str_replace("?month", $thismonth, $to);
 			$to = str_replace("?year", $thisyear, $to);
 			$tostamp = strtotime($to);
+
 			if ($tostamp) {
 				$rules[] = "UNIX_TIMESTAMP(time) < $tostamp";
 			} else {
@@ -299,11 +321,12 @@ function smd_lately($atts, $thing=NULL) {
 				}
 			}
 		}
+
 		if ($within) {
 			if ($tostamp) {
 				$refstamp = $tostamp;
 				$refdir = '-';
-			} else if ($fromstamp) {
+			} elseif ($fromstamp) {
 				$refstamp = $fromstamp;
 				$refdir = '+';
 			} else {
@@ -312,6 +335,7 @@ function smd_lately($atts, $thing=NULL) {
 			}
 
 			$diffstamp = strtotime($refdir.$within, $refstamp);
+
 			if ($diffstamp) {
 				$rules[] = "UNIX_TIMESTAMP(time) ".(($refdir == '-') ? '> ' : '< ' ).$diffstamp;
 			} else {
@@ -324,14 +348,17 @@ function smd_lately($atts, $thing=NULL) {
 		if ($debug) {
 			echo "++ smd_lately RULES ++";
 			dmp($rules);
+
 			if ($from || $to || $within) {
 				echo "++ TIME WINDOW ++";
 				if ($from) {
 					dmp("FROM: " . date('Y-M-d H:i:s', $fromstamp));
 				}
+
 				if ($within) {
 					dmp("WITHIN: " . date('Y-M-d H:i:s', $diffstamp), $within . (($refdir == '-') ? " BEFORE TO DATE" : " AFTER FROM DATE"));
 				}
+
 				if ($to) {
 					dmp("TO: ". date('Y-M-d H:i:s', $tostamp));
 				} else {
@@ -345,11 +372,12 @@ function smd_lately($atts, $thing=NULL) {
 		$query = 'SELECT count(page) as popularity, page, MAX(time) as time FROM '.PFX.'txp_log WHERE 1=1'.$ip.$thisicle.$rules.' AND status = 200 GROUP BY page ORDER BY '.$sort;
 		$rs = getRows($query, $debug);
 
-		// Store the current document in the cache and datestamp it
+		// Store the current document in the cache and datestamp it.
 		if ($cache_time > 0) {
 			if ($debug > 1) {
 				dmp('++ DATA CACHED to '.$var_data.' ++');
 			}
+
 			set_pref($var_lastmod, time(), 'smd_lately', PREF_HIDDEN, 'text_input');
 			$fh = fopen($var_data, 'wb');
 			fwrite($fh, serialize($rs));
@@ -361,46 +389,62 @@ function smd_lately($atts, $thing=NULL) {
 		dmp($rs);
 	}
 
-	// Set up counters and create query params
+	// Set up counters and create query params.
 	$count = 0;
 	$out = array();
 
 	if ($status) {
 		$status = do_list($status, $delim);
 		$stati = array();
+
 		foreach ($status as $stat) {
 			if (empty($stat)) {
 				continue;
-			} else if (is_numeric($stat)) {
+			} elseif (is_numeric($stat)) {
 				$stati[] = $stat;
 			} else {
 				$stati[] = getStatusNum($stat);
 			}
 		}
+
 		$status = " AND Status IN (".join(',', $stati).")";
 	}
 
-	switch($time) {
+	switch ($time) {
 		case "":
-		case "any" : $time = ""; break;
-		case "future" : $time = " AND Posted > NOW()"; break;
-		default : $time = " AND Posted < NOW()"; break;
+		case "any":
+			$time = "";
+			break;
+		case "future":
+			$time = " AND Posted > NOW()";
+			break;
+		default:
+			$time = " AND Posted < NOW()";
+			break;
 	}
 
-	// Process the result set
+	// Process the result set.
 	$articles = array();
+
 	if ($rs) {
-		// Loop until limit reached
+		// Loop until limit reached.
 		foreach ($rs as $row) {
-			if ($limit > 0 && is_numeric($limit) && $count == $limit) break;
+			if ($limit > 0 && is_numeric($limit) && $count == $limit) {
+				break;
+			}
+
 			if ($permlink_mode == 'messy') {
 				preg_match('@id=(\d+)@', $row['page'], $matches);
-				$da_url = isset($matches[1]) ? 'id'.$matches[1] :  ''; // Add 'id' to trick array_multisort into believing its an associative array
+
+				// Add 'id' to trick array_multisort into believing it's an associative array.
+				$da_url = isset($matches[1]) ? 'id'.$matches[1] :  '';
 			} else {
-				$justurl = explode('?',$row['page']); // Strip off any query params
+				// Strip off any query params.
+				$justurl = explode('?',$row['page']);
 				$urlpart = explode('/', rtrim($justurl[0],"/"));
 				$da_url = $urlpart[count($urlpart)-1];
 			}
+
 			if ($da_url) {
 				if (isset($articles[$da_url])) {
 					$articles[$da_url][0] += $row['popularity'];
@@ -412,6 +456,7 @@ function smd_lately($atts, $thing=NULL) {
 						$row['popularity'],
 						$row['time'],
 					);
+
 					$count++;
 				}
 			}
@@ -423,56 +468,64 @@ function smd_lately($atts, $thing=NULL) {
 		}
 
 		if ($articles) {
-			// If sorting by popularity, re-order the results in case they've been subsequently aggregated
-			if($sortBits[0] == 'popularity') {
+			// If sorting by popularity, re-order the results in case they've been subsequently aggregated.
+
+			if ($sortBits[0] == 'popularity') {
 				foreach ($articles as $key => $row) {
 					$apop[$key]  = $row[0];
 					$atime[$key] = $row[1];
 				}
+
 				$dir = ($sortBits[1] == 'asc') ? SORT_ASC : SORT_DESC;
 				array_multisort($apop, $dir, $atime, $dir, $articles);
 			}
+
 			if ($permlink_mode == 'messy') {
-				// Strip off the fake 'id' identifiers in the array keys
+				// Strip off the fake 'id' identifiers in the array keys.
 				foreach ($articles as $key => $row) {
 					$tmp[substr($key, 2)] = $row;
 				}
+
 				$articles = $tmp;
 			}
+
 			if ($debug > 2) {
 				echo '++ FINAL LOG LIST++';
 				dmp($articles);
 			}
+
 			$darticles = safe_rows('*, unix_timestamp(Posted) as uPosted, unix_timestamp(Expires) as uExpires, unix_timestamp(LastMod) as uLastMod', 'textpattern', "$match_col IN ('" . join("','", array_keys($articles)) . "')".$status.$time, $debug);
 
-			// Refactor the article list keyed on url_title or ID (depending on permlink_mode)
+			// Refactor the article list keyed on url_title or ID (depending on permlink_mode).
 			$urlicles = array();
+
 			foreach ($darticles as $darticle) {
 				$urlicles[$darticle[$match_col]] = $darticle;
 			}
 
 			// Iterate over the _original_ article list (from the first query)
-			// and pluck out the relevant article contents
+			// and pluck out the relevant article contents.
 			foreach ($articles as $urlTitle => $darticle) {
 				if (isset($urlicles[$urlTitle])) {
 					$theTime = strtotime($darticle[1]);
 					$aktiv = $thisarticle && $show_current && $urlTitle == $curr_art;
 					$replacements = array(
-						"{smd_lately_active}" => (($aktiv) ? ' class="'.$active_class.'"' : ''),
-						"{smd_lately_activeclass}" => (($aktiv) ? $active_class : ''),
-						"{smd_lately_count}" => $darticle[0],
-						"{smd_lately_fulldate}" => $darticle[1],
-						"{smd_lately_date}" => strftime("%F", $theTime),
-						"{smd_lately_date_year}" => strftime("%Y", $theTime),
-						"{smd_lately_date_month}" => strftime("%m", $theTime),
+						"{smd_lately_active}"         => (($aktiv) ? ' class="'.$active_class.'"' : ''),
+						"{smd_lately_activeclass}"    => (($aktiv) ? $active_class : ''),
+						"{smd_lately_count}"          => $darticle[0],
+						"{smd_lately_fulldate}"       => $darticle[1],
+						"{smd_lately_date}"           => strftime("%F", $theTime),
+						"{smd_lately_date_year}"      => strftime("%Y", $theTime),
+						"{smd_lately_date_month}"     => strftime("%m", $theTime),
 						"{smd_lately_date_monthname}" => strftime("%B", $theTime),
-						"{smd_lately_date_day}" => strftime("%d", $theTime),
-						"{smd_lately_date_dayname}" => strftime("%A", $theTime),
-						"{smd_lately_time}" => strftime("%T", $theTime),
-						"{smd_lately_time_hour}" => strftime("%H", $theTime),
-						"{smd_lately_time_minute}" => strftime("%M", $theTime),
-						"{smd_lately_time_second}" => strftime("%S", $theTime),
+						"{smd_lately_date_day}"       => strftime("%d", $theTime),
+						"{smd_lately_date_dayname}"   => strftime("%A", $theTime),
+						"{smd_lately_time}"           => strftime("%T", $theTime),
+						"{smd_lately_time_hour}"      => strftime("%H", $theTime),
+						"{smd_lately_time_minute}"    => strftime("%M", $theTime),
+						"{smd_lately_time_second}"    => strftime("%S", $theTime),
 					);
+
 					article_push();
 					populateArticleData($urlicles[$urlTitle]);
 					$out[] = ($thing) ? parse(strtr($thing, $replacements)) : (($form) ? parse_form(strtr($form, $replacements)) : href( $urlicles[$urlTitle]['Title'], permlinkurl($urlicles[$urlTitle]), $replacements['{smd_lately_active}'] ));
@@ -481,42 +534,24 @@ function smd_lately($atts, $thing=NULL) {
 			}
 		}
 	}
+
 	return ($out) ? doLabel($label, $labeltag).doWrap($out, $wraptag, $break, $class) : '';
 }
 
 // ------------------------
-// Plugin-specific replacement strings - localise as required
-function smd_rv_gTxt($what, $atts = array()) {
+// Plugin-specific replacement strings - localise as required.
+function smd_rv_gTxt($what, $atts = array())
+{
 	$lang = array(
 		'invalid_ts' => 'Invalid date/time info in "{where}" attribute.',
 		'logging_enabled' => 'Logging must be set to "All hits" in Basic Pefs.',
 	);
+
 	return strtr($lang[$what], $atts);
 }
 # --- END PLUGIN CODE ---
 if (0) {
 ?>
-<!--
-# --- BEGIN PLUGIN CSS ---
-<style type="text/css">
-#smd_help { line-height:1.5 ;}
-#smd_help code { font-weight:bold; font: 105%/130% "Courier New", courier, monospace; background-color: #FFFFCC;}
-#smd_help code.block { font-weight:normal; border:1px dotted #999; background-color: #f0e68c; display:block; margin:10px 10px 20px; padding:10px; }
-#smd_help h1 { color: #369; font: 20px Georgia, sans-serif; margin: 0; text-align: center; }
-#smd_help h2 { border-bottom: 1px solid black; padding:10px 0 0; color: #369; font: 17px Georgia, sans-serif; }
-#smd_help h3 { color: #275685; font: bold 12px Arial, sans-serif; letter-spacing: 1px; margin: 10px 0 0;text-transform: uppercase; text-decoration:underline;}
-#smd_help h4 { font: bold 11px Arial, sans-serif; letter-spacing: 1px; margin: 10px 0 0 ;text-transform: uppercase; }
-#smd_help .atnm { font-weight:bold; color:#33d; }
-#smd_help .mand { background:#eee; border:1px dotted #999; }
-#smd_help table {width:90%; text-align:center; padding-bottom:1em;}
-#smd_help td, #smd_help th {border:1px solid #999; padding:.5em 0;}
-#smd_help ul { list-style-type:square; }
-#smd_help .required {color:red;}
-#smd_help li { margin:5px 20px 5px 30px; }
-#smd_help .break { margin-top:5px; }
-</style>
-# --- END PLUGIN CSS ---
--->
 <!--
 # --- BEGIN PLUGIN HELP ---
 notextile. <div id="smd_help">
@@ -535,13 +570,13 @@ h2(#features). Features
 
 h2(#author). Author / credits
 
-"Stef Dawson":http://stefdawson.com/contact.
+"Stef Dawson":https://stefdawson.com/contact.
 
 h2(#install). Installation / Uninstallation
 
 p(required). Requires Logging to be set to _All hits_ (will issue a warning if not)
 
-Download the plugin from either "textpattern.org":http://textpattern.org/plugins/1110/smd_lately, or the "software page":http://stefdawson.com/sw, paste the code into the TXP Admin -> Plugins pane, install and enable the plugin. Visit the "forum thread":http://forum.textpattern.com/viewtopic.php?id=31341 for more info or to report on the success or otherwise of the plugin.
+Download the plugin from either "textpattern.org":http://textpattern.org/plugins/1110/smd_lately, or the "software page":https://stefdawson.com/sw, paste the code into the TXP Admin -> Plugins pane, install and enable the plugin. Visit the "forum thread":https://forum.textpattern.com/viewtopic.php?id=31341 for more info or to report on the success or otherwise of the plugin.
 
 To uninstall, simply delete from the Admin -> Plugins page.
 
