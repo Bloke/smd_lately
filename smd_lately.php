@@ -97,7 +97,6 @@ function smd_lately ($atts, $thing = null)
     }
 
     extract(lAtts(array(
-        'by'           => 'SMD_CURRENT', // Default is the IP address of the current visitor. Can be empty for 'all' visitors
         'section'      => '',
         'status'       => '',
         'time'         => 'past',
@@ -126,7 +125,7 @@ function smd_lately ($atts, $thing = null)
 
     // Make a unique hash value for this instance so the results can be cached in a file.
     $uniq = '';
-    $md5 = md5($by.$sort.$section.$within.$from.$to.$include.$exclude);
+    $md5 = md5($sort.$section.$within.$from.$to.$include.$exclude);
 
     list($hashLen, $hashSkip) = explode(':', $hashsize);
 
@@ -163,28 +162,6 @@ function smd_lately ($atts, $thing = null)
     if ($read_cache) {
         $rs = unserialize(file_get_contents($var_data));
     } else {
-        // IP address clause
-        $ip = '';
-
-        if ($by == 'SMD_CURRENT') {
-            if (function_exists('remote_addr')) {
-                $ip = remote_addr();
-            } else {
-                $ip = serverSet('REMOTE_ADDR');
-
-                if (($ip == '127.0.0.1' || $ip == serverSet('SERVER_ADDR')) && serverSet('HTTP_X_FORWARDED_FOR')) {
-                    $ips = explode(', ', serverSet('HTTP_X_FORWARDED_FOR'));
-                    $ip = $ips[0];
-                }
-            }
-
-            if ($ip) {
-                $ip = " AND ip='".doSlash($ip)."'";
-            }
-        } elseif ($by == 'SMD_ALL') {
-            $by = '';
-        }
-
         // Make sure we don't include the current article
         // Note the regexp is anchored to the end with a $.
         $thisicle = '';
@@ -236,13 +213,12 @@ function smd_lately ($atts, $thing = null)
 
             foreach ($include as $inc) {
                 $regex = $like = false;
-                $column = 'ip';
+                $column = 'host';
                 $parts = do_list($inc, $param_delim);
                 $match = array_pop($parts);
 
                 foreach ($parts as $part) {
                     switch ($part) {
-                        case "ip":
                         case "host":
                         case "page":
                         case "refer":
@@ -270,13 +246,12 @@ function smd_lately ($atts, $thing = null)
 
             foreach ($exclude as $exc) {
                 $regex = $like = false;
-                $column = 'ip';
+                $column = 'host';
                 $parts = do_list($exc, $param_delim);
                 $match = array_pop($parts);
 
                 foreach ($parts as $part) {
                     switch ($part) {
-                        case "ip":
                         case "host":
                         case "page":
                         case "refer":
@@ -376,7 +351,7 @@ function smd_lately ($atts, $thing = null)
 
         $rules = ' AND ' . join(' AND ', $rules);
 
-        $query = 'SELECT count(page) as popularity, page, MAX(time) as time FROM '.PFX.'txp_log WHERE 1=1'.$ip.$thisicle.$rules.' AND status = 200 GROUP BY page ORDER BY '.$sort;
+        $query = 'SELECT count(page) as popularity, page, MAX(time) as time FROM '.PFX.'txp_log WHERE 1=1'.$thisicle.$rules.' AND status = 200 GROUP BY page ORDER BY '.$sort;
         $rs = getRows($query, $debug);
 
         // Store the current document in the cache and datestamp it.
@@ -565,13 +540,13 @@ notextile. <div id="smd_help">
 
 h1. smd_lately
 
-List the most recent articles viewed by the current visitor or, alternatively, all visitors. Can also order by popularity (most viewed).
+List the most recent articles viewed by all visitors. Can also order by popularity (most viewed).
 
 h2(#features). Features
 
 * List recently viewed articles: useful on product pages or in a shopping cart
 * Show a list of the most popular articles
-* Limit either list by section or arbitrary value (ip, host, page, referer) if you wish
+* Limit either list by section or arbitrary value (host, page, referer) if you wish
 * Uses the visitor logs
 * Automatically filters out article list pages, category, author or search visits
 
@@ -597,59 +572,58 @@ h3(atts). Attributes
 
 h4. Log filtering and sort order attributes
 
-* %(atnm)by% : use @by=""@ or @by="SMD_ALL"@ to view the most recent articles by all site visitors. By default (i.e. if the attribute is omitted) the plugin only shows the recent articles viewed by the current visitor
-* %(atnm)section% : choose to show articles only from this list of sections. Default: unset (i.e. from all sections). %(required)Note that you must be using either messy mode or a permlink mode with @/section@ in it to filter by section%
-* %(atnm)show_current% : Display the article being viewed in the list: 1=Yes; 0=No. Ignored if in an article_list page. Default: 0
-* %(atnm)include% : ensure that log file entries that match this set of criteria are included in the list. This attribute takes up to 3 parameters, separated by @param_delim@ (default is the colon).
-** First is the name of a field to match against. Choose from @ip@ (the default), @host@, @page@ or @refer@
+* %section% : choose to show articles only from this list of sections. Default: unset (i.e. from all sections). %(required)Note that you must be using either messy mode or a permlink mode with @/section@ in it to filter by section%
+* %show_current% : Display the article being viewed in the list: 1=Yes; 0=No. Ignored if in an article_list page. Default: 0
+* %include% : ensure that log file entries that match this set of criteria are included in the list. This attribute takes up to 3 parameters, separated by @param_delim@ (default is the colon).
+** First is the name of a field to match against. Choose from @host@ (the default), @page@ or @refer@
 ** Second is an optional parameter to indicate whether the match is a regular expression, wild or an exact match. Use @regex@ if you wish this match to be considered as a regular expression, specify @like@ if you want to check if the text is a simple 'wild' match (it's similar to, but quicker than, a regex), or omit the parameter entirely if you want an 'exact match' to be considered
 ** Finally, specify the text you want to match with that field. For example, @include="host:like:www.domain.com"@ would only include results that had @www.domain.com@ somewhere in their host name. Using @include="192.168.2.200"@ would show pages from any internal meddling you may have done on your local XAMPP server. Note that if you omit parameters 1 and 2, the plugin uses the defaults
-* %(atnm)exclude% : ensure that log file entries that match this set of criteria are *not* included in the list. Use this in the same manner as @include@
-* %(atnm)from% : date / time stamp (written in English) of the _earliest_ date to consider in the logs. You may specify @?month@ and/or @?year@ to have the plugin replace it with the current month/year. Default: unset
-* %(atnm)to% : date / time stamp (written in English) of the _most recent_ date to consider in the logs. You may specify @?month@ and/or @?year@ to have the plugin replace it with the current month/year. Default: current time
-* %(atnm)within% : date offset (written in English) which specifies a time window in which you are interested. For example @within="36 hours"@ would show results from the last 36 hours. If you specify a @to@ date, the value of @within@ is subtracted from it. If you specify a @from@ date, the value of @within@ is _added_ to it. If you specify both @from@ and @to@, the offset is calculated relative to the @to@ attribute. Default: unset
-* %(atnm)sort% : order the list by either @time@, or @popularity@. Add @asc@ or @desc@ to choose ascending or descending sort order. Default: @time desc@
-* %(atnm)limit% : show this many items in the list. 0 = unlimited. Default: 10
+* %exclude% : ensure that log file entries that match this set of criteria are *not* included in the list. Use this in the same manner as @include@
+* %from% : date / time stamp (written in English) of the _earliest_ date to consider in the logs. You may specify @?month@ and/or @?year@ to have the plugin replace it with the current month/year. Default: unset
+* %to% : date / time stamp (written in English) of the _most recent_ date to consider in the logs. You may specify @?month@ and/or @?year@ to have the plugin replace it with the current month/year. Default: current time
+* %within% : date offset (written in English) which specifies a time window in which you are interested. For example @within="36 hours"@ would show results from the last 36 hours. If you specify a @to@ date, the value of @within@ is subtracted from it. If you specify a @from@ date, the value of @within@ is _added_ to it. If you specify both @from@ and @to@, the offset is calculated relative to the @to@ attribute. Default: unset
+* %sort% : order the list by either @time@, or @popularity@. Add @asc@ or @desc@ to choose ascending or descending sort order. Default: @time desc@
+* %limit% : show this many items in the list. 0 = unlimited. Default: 10
 
 h4. Article filter attributes
 
-* %(atnm)status% : Only articles with one of these listed status values are displayed in the list. Default: 4 (@live@)
-* %(atnm)time% : If an article in the log has its posted timestamp in the time period indicated in this attribute, it will be displayed. Choose from @any@, @future@ or @past@ (the default). Leaving this at its default prevents any future-dated articles that you may be previewing from showing up in the list
+* %status% : Only articles with one of these listed status values are displayed in the list. Default: 4 (@live@)
+* %time% : If an article in the log has its posted timestamp in the time period indicated in this attribute, it will be displayed. Choose from @any@, @future@ or @past@ (the default). Leaving this at its default prevents any future-dated articles that you may be previewing from showing up in the list
 
 h4. Display attributes
 
-* %(atnm)wraptag% : the (X)HTML tag, without its brackets, to wrap the list with. Default: unset
-* %(atnm)class% : the CSS class name to apply to the wraptag. Default: @smd_lately@
-* %(atnm)active_class% : the CSS class name to set as the active class when @show_current="1"@ is used. Default: @active@. See "replacement variables":#reps for details on how to actually insert this into your markup
-* %(atnm)break% : the (X)HTML tag, without its brackets, to wrap each item with. Default: @br@
-* %(atnm)label% : the label text to add to the top of the list. Default: unset
-* %(atnm)labeltag% : the (X)HTML tag, without its brackets, to wrap the label with. Default: unset
+* %wraptag% : the (X)HTML tag, without its brackets, to wrap the list with. Default: unset
+* %class% : the CSS class name to apply to the wraptag. Default: @smd_lately@
+* %active_class% : the CSS class name to set as the active class when @show_current="1"@ is used. Default: @active@. See "replacement variables":#reps for details on how to actually insert this into your markup
+* %break% : the (X)HTML tag, without its brackets, to wrap each item with. Default: @br@
+* %label% : the label text to add to the top of the list. Default: unset
+* %labeltag% : the (X)HTML tag, without its brackets, to wrap the label with. Default: unset
 
 h4. Plugin configuration attributes
 
-* %(atnm)form% : if you prefer to use a form instead of the container to hold your markup and tags, specify it here. Default: unset
-* %(atnm)delim% : the delimiter to use between items in attribute lists (@section@, @include@, @exclude@, @status@). Default: comma
-* %(atnm)param_delim% : the delimiter to use between parameters inside an attribute (@include@, @exclude@). Default: colon
-* %(atnm)cache_time% : if set, the results are cached in a temporary file for the designated number of seconds. Subsequent calls to smd_lately (e.g. refreshing the page) will read the cached information instead of trawling the logs, thus cutting down on server load. After @cache_time@ seconds have elapsed, the next page refresh will cause the information to be recalculated. Note that the file name of the cached data is of the form @smd_lately_data_ABCDEF@ where ABCDEF is a unique string that applies to this particular smd_lately tag. If you alter the attributes there is a good chance it will create a new temporary file and the plugin does not clean up after itself. For this reason it's probably a good idea to play with the plugin and set your attributes up before setting @cache_time@
+* %form% : if you prefer to use a form instead of the container to hold your markup and tags, specify it here. Default: unset
+* %delim% : the delimiter to use between items in attribute lists (@section@, @include@, @exclude@, @status@). Default: comma
+* %param_delim% : the delimiter to use between parameters inside an attribute (@include@, @exclude@). Default: colon
+* %cache_time% : if set, the results are cached in a temporary file for the designated number of seconds. Subsequent calls to smd_lately (e.g. refreshing the page) will read the cached information instead of trawling the logs, thus cutting down on server load. After @cache_time@ seconds have elapsed, the next page refresh will cause the information to be recalculated. Note that the file name of the cached data is of the form @smd_lately_data_ABCDEF@ where ABCDEF is a unique string that applies to this particular smd_lately tag. If you alter the attributes there is a good chance it will create a new temporary file and the plugin does not clean up after itself. For this reason it's probably a good idea to play with the plugin and set your attributes up before setting @cache_time@
 
 h3(atts#reps). Replacement variables
 
 In addition to regular TXP article tags, you may employ any of the following codes in your form/container to display the corresponding value:
 
-* %(atnm){smd_lately_activeclass}% : the raw classname you specified in your @active_class@ attribute: only set if current article matches
-* %(atnm){smd_lately_active}% : a full @ class="class_name"@ string: only set if current article matches
-* %(atnm){smd_lately_count}% : the number of times the article has been accessed
-* %(atnm){smd_lately_fulldate}% : the article's last access date stamp
-* %(atnm){smd_lately_date}% : the article's last access date
-* %(atnm){smd_lately_date_year}% : the article's last access year
-* %(atnm){smd_lately_date_month}% : the article's last access month (number)
-* %(atnm){smd_lately_date_monthname}% : the article's last access month (full name)
-* %(atnm){smd_lately_date_day}% : the article's last access day (number)
-* %(atnm){smd_lately_date_dayname}% : the article's last access day (full name)
-* %(atnm){smd_lately_time}% : the article's last access time stamp
-* %(atnm){smd_lately_time_hour}% : the article's last access hour
-* %(atnm){smd_lately_time_minute}% : the article's last access minute
-* %(atnm){smd_lately_time_second}% : the article's last access second
+* %{smd_lately_activeclass}% : the raw classname you specified in your @active_class@ attribute: only set if current article matches
+* %{smd_lately_active}% : a full @ class="class_name"@ string: only set if current article matches
+* %{smd_lately_count}% : the number of times the article has been accessed
+* %{smd_lately_fulldate}% : the article's last access date stamp
+* %{smd_lately_date}% : the article's last access date
+* %{smd_lately_date_year}% : the article's last access year
+* %{smd_lately_date_month}% : the article's last access month (number)
+* %{smd_lately_date_monthname}% : the article's last access month (full name)
+* %{smd_lately_date_day}% : the article's last access day (number)
+* %{smd_lately_date_dayname}% : the article's last access day (full name)
+* %{smd_lately_time}% : the article's last access time stamp
+* %{smd_lately_time_hour}% : the article's last access hour
+* %{smd_lately_time_minute}% : the article's last access minute
+* %{smd_lately_time_second}% : the article's last access second
 
 h3(#caveats). Caveats
 
@@ -657,25 +631,23 @@ Since the plugin uses the TXP logs you need to make sure they are being used (Ad
 
 h2(examples). Examples
 
-h3(#eg1). Example 1: recent article list for current visitor
+h3(#eg1). Example 1: recent article list for all visitors
 
-bc(block). <txp:smd_lately />
+bc. <txp:smd_lately />
 
-h3(#eg2). Example 2: recent articles for all visitors
+h3(#eg2). Example 2: recent articles for all visitors in particular sections
 
-bc(block). <txp:smd_lately by="" section="archive, about" />
+bc. <txp:smd_lately section="archive, about" />
 
 Only shows the articles viewed from the 'archive' and 'about' sections.
 
 h3(#eg3). Example 3: most popular articles across the site
 
-bc(block). <txp:smd_lately by="" sort="popularity"  />
-
-Without using the @by@ attribute, this would give the most popular articles for the current visitor -- probably not what you want!
+bc. <txp:smd_lately sort="popularity"  />
 
 h3(#eg4). Example 4: tag as a container
 
-bc(block). <txp:smd_lately by=""
+bc. <txp:smd_lately
      wraptag="ul" break="li" limit="6">
    <txp:permlink><txp:title /></txp:permlink> [{smd_lately_count}]<br />
    <txp:posted /> by <txp:author />
@@ -685,7 +657,7 @@ Shows the 6 most recent articles accessed by any site visitor. The unordered lis
 
 h3(#eg5). Example 5: filtering by host
 
-bc(block). <txp:smd_lately by=""
+bc. <txp:smd_lately
      wraptag="ul" break="li" limit="6"
      exclude="host:id3456-bt.custref.com, refer:">
    <txp:permlink><txp:title /></txp:permlink> [{smd_lately_count}]<br />
@@ -697,7 +669,7 @@ If you adjusted the exclude attribute to read @exclude="host:like:bt.custref"@ t
 
 h3(#eg6). Example 6: filtering by time range
 
-bc(block). <txp:smd_lately by=""
+bc. <txp:smd_lately
      wraptag="ul" break="li"
      from="?year-?month-01">
    <txp:permlink><txp:title /></txp:permlink> [{smd_lately_count}]<br />
