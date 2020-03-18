@@ -86,6 +86,8 @@ if (class_exists('\Textpattern\Tag\Registry')) {
  */
 function smd_lately ($atts, $thing = null)
 {
+    include_once txpath.'/lib/txplib_admin.php';
+
     global $prefs, $thisarticle, $permlink_mode;
 
     // Check logging is on.
