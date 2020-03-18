@@ -86,473 +86,473 @@ if (class_exists('\Textpattern\Tag\Registry')) {
  */
 function smd_lately ($atts, $thing = null)
 {
-	global $prefs, $thisarticle, $permlink_mode;
-
-	// Check logging is on.
-	if ( $prefs['logging'] != 'all') {
-		trigger_error(smd_rv_gTxt('logging_enabled'), E_USER_NOTICE);
-		return;
-	}
-
-	extract(lAtts(array(
-		'by'           => 'SMD_CURRENT', // Default is the IP address of the current visitor. Can be empty for 'all' visitors
-		'section'      => '',
-		'status'       => '',
-		'time'         => 'past',
-		'include'      => '',
-		'exclude'      => '',
-		'within'       => '',
-		'from'         => '',
-		'to'           => '',
-		'show_current' => 0,
-		'form'         => '',
-		'limit'        => 10,
-		'sort'         => 'time desc',
-		'wraptag'      => '',
-		'break'        => 'br',
-		'class'        => __FUNCTION__,
-		'active_class' => 'active',
-		'label'        => '',
-		'labeltag'     => '',
-		'delim'        => ',',
-		'param_delim'  => ':',
-		'silent'       => 0,
-		'cache_time'   => '0', // in seconds
-		'hashsize'     => '6:5',
-		'debug'        => 0,
-	), $atts));
-
-	// Make a unique hash value for this instance so the results can be cached in a file.
-	$uniq = '';
-	$md5 = md5($by.$sort.$section.$within.$from.$to.$include.$exclude);
-
-	list($hashLen, $hashSkip) = explode(':', $hashsize);
-
-	for ($idx = 0, $cnt = 0; $cnt < $hashLen; $cnt++, $idx = (($idx+$hashSkip) % strlen($md5))) {
-		$uniq .= $md5[$idx];
-	}
-
-	$var_lastmod = 'smd_lately_lmod_'.$uniq;
-	$var_data = find_temp_dir().DS.'smd_lately_data_'.$uniq;
-	$lastmod = get_pref($var_lastmod, 0);
-	$read_cache = (($cache_time > 0) && ((time() - $lastmod) < $cache_time)) ? true : false;
-
-	// Sanitize sort options.
-	$sortBits = do_list($sort, " ");
-	$sortBits[0] = (empty($sortBits[0])) ? 'time' : $sortBits[0];
-
-	if (!isset($sortBits[1]) || !in_array($sortBits[1], array('desc', 'asc'))) {
-		$sortBits[1] = 'desc';
-		$sort = join(" ", $sortBits);
-	}
-
-	// Make a note of the current article if appropriate.
-	if ($permlink_mode=='messy') {
-		$match_col = 'ID';
-		$match_tacol = 'thisid';
-		$match_prefix = 'id=';
-	} else {
-		$match_col = $match_tacol = 'url_title';
-		$match_prefix = '';
-	}
-
-	$curr_art = ($thisarticle) ? $thisarticle[$match_tacol] : '';
-
-	if ($read_cache) {
-		$rs = unserialize(file_get_contents($var_data));
-	} else {
-		// IP address clause
-		$ip = '';
-
-		if ($by == 'SMD_CURRENT') {
-			if (function_exists('remote_addr')) {
-				$ip = remote_addr();
-			} else {
-				$ip = serverSet('REMOTE_ADDR');
-
-				if (($ip == '127.0.0.1' || $ip == serverSet('SERVER_ADDR')) && serverSet('HTTP_X_FORWARDED_FOR')) {
-					$ips = explode(', ', serverSet('HTTP_X_FORWARDED_FOR'));
-					$ip = $ips[0];
-				}
-			}
-
-			if ($ip) {
-				$ip = " AND ip='".doSlash($ip)."'";
-			}
-		} elseif ($by == 'SMD_ALL') {
-			$by = '';
-		}
-
-		// Make sure we don't include the current article
-		// Note the regexp is anchored to the end with a $.
-		$thisicle = '';
-
-		if (isset($thisarticle)) {
-			if (!$show_current) {
-				$urltitle = $thisarticle[$match_tacol];
-				$thisicle = ($urltitle) ? " AND page NOT LIKE '%$match_prefix$urltitle'" : '';
-			}
-		}
-
-		// Filter out article_list pages and other (un)desirables.
-		$rules = array(
-			"page NOT LIKE '/'", // Goodbye front page
-			"page NOT LIKE ''",
-			"page NOT LIKE '%q=%'", // Goodbye searches
-			"page NOT LIKE '%c=%'", // Goodbye cat lists
-			"page NOT LIKE '%pg=%'", // Goodbye multi-page lists
-			"page NOT LIKE '%category=%'",
-			"page NOT LIKE '/category/%'",
-			"page NOT LIKE '%author=%'",
-			"page NOT LIKE '/author/%'",
-		);
-
-		if ($section) {
-			$section = do_list($section, $delim);
-			$subrule = array();
-
-			foreach ($section as $sec) {
-				if ($permlink_mode == 'messy') {
-					$subrule[] = "page LIKE '%s=$sec%'";
-				} else {
-					$subrule[] = "page LIKE '/$sec%' AND page NOT REGEXP '^/$sec/?$'";
-				}
-			}
-
-			$subrule = '(' . join(' OR ', $subrule) . ')';
-			$rules[] = $subrule;
-		} else {
-			// Exclude any rows that just contain the section (i.e. article list pages).
-			$allSecs = safe_column('name', 'txp_section', "1=1", $debug);
-			$rules[] = "page NOT REGEXP '^/(" . join("|", $allSecs) . ")/?$'";
-		}
-
-		// Process any manual includes.
-		if ($include) {
-			$include = do_list($include, $delim);
-			$subrules = array();
-
-			foreach ($include as $inc) {
-				$regex = $like = false;
-				$column = 'ip';
-				$parts = do_list($inc, $param_delim);
-				$match = array_pop($parts);
-
-				foreach ($parts as $part) {
-					switch ($part) {
-						case "ip":
-						case "host":
-						case "page":
-						case "refer":
-						case "method":
-							$column = $part;
-							break;
-						case "like":
-							$like = true;
-							break;
-						case "regex":
-							$regex = true;
-							break;
-					}
-				}
-
-				$subrules[] = $regex ? "$column REGEXP '".doSlash(preg_quote($match))."'" : (($like) ? "$column LIKE '%".doSlash($match)."%'" : "$column = '".doSlash($match)."'");
-			}
-
-			$rules[] = '('.join(' OR ', $subrules).')';
-		}
-
-		// Process any manual excludes.
-		if ($exclude) {
-			$exclude = do_list($exclude, $delim);
-
-			foreach ($exclude as $exc) {
-				$regex = $like = false;
-				$column = 'ip';
-				$parts = do_list($exc, $param_delim);
-				$match = array_pop($parts);
-
-				foreach ($parts as $part) {
-					switch ($part) {
-						case "ip":
-						case "host":
-						case "page":
-						case "refer":
-						case "method":
-							$column = $part;
-							break;
-						case "like":
-							$like = true;
-							break;
-						case "regex":
-							$regex = true;
-							break;
-					}
-				}
-
-				$rules[] = $regex ? "$column NOT REGEXP '".doSlash(preg_quote($match))."'" : (($like) ? "$column NOT LIKE '%".doSlash($match)."%'" : "$column != '".doSlash($match)."'");
-			}
-		}
-
-		// Filter by time frame.
-		$fromstamp = $tostamp = $diffstamp = 0;
-		$thismonth = date('F', mktime(0,0,0,strftime('%m'),1));
-		$thisyear = strftime('%Y');
-
-		if ($from) {
-			$from = str_replace("?month", $thismonth, $from);
-			$from = str_replace("?year", $thisyear, $from);
-			$fromstamp = strtotime($from);
-
-			if ($fromstamp) {
-				$rules[] = "UNIX_TIMESTAMP(time) > $fromstamp";
-			} else {
-				if (!$silent) {
-					trigger_error(smd_rv_gTxt('invalid_ts', array("{where}" => 'from')), E_USER_NOTICE);
-				}
-			}
-		}
-
-		if ($to) {
-			$to = str_replace("?month", $thismonth, $to);
-			$to = str_replace("?year", $thisyear, $to);
-			$tostamp = strtotime($to);
-
-			if ($tostamp) {
-				$rules[] = "UNIX_TIMESTAMP(time) < $tostamp";
-			} else {
-				if (!$silent) {
-					trigger_error(smd_rv_gTxt('invalid_ts', array("{where}" => 'to')), E_USER_NOTICE);
-				}
-			}
-		}
-
-		if ($within) {
-			if ($tostamp) {
-				$refstamp = $tostamp;
-				$refdir = '-';
-			} elseif ($fromstamp) {
-				$refstamp = $fromstamp;
-				$refdir = '+';
-			} else {
-				$refstamp = time();
-				$refdir = '-';
-			}
-
-			$diffstamp = strtotime($refdir.$within, $refstamp);
-
-			if ($diffstamp) {
-				$rules[] = "UNIX_TIMESTAMP(time) ".(($refdir == '-') ? '> ' : '< ' ).$diffstamp;
-			} else {
-				if (!$silent) {
-					trigger_error(smd_rv_gTxt('invalid_ts', array("{where}" => 'within')), E_USER_NOTICE);
-				}
-			}
-		}
-
-		if ($debug) {
-			echo "++ smd_lately RULES ++";
-			dmp($rules);
-
-			if ($from || $to || $within) {
-				echo "++ TIME WINDOW ++";
-				if ($from) {
-					dmp("FROM: " . date('Y-M-d H:i:s', $fromstamp));
-				}
-
-				if ($within) {
-					dmp("WITHIN: " . date('Y-M-d H:i:s', $diffstamp), $within . (($refdir == '-') ? " BEFORE TO DATE" : " AFTER FROM DATE"));
-				}
-
-				if ($to) {
-					dmp("TO: ". date('Y-M-d H:i:s', $tostamp));
-				} else {
-					dmp("TO: ". date('Y-M-d H:i:s', time()));
-				}
-			}
-		}
-
-		$rules = ' AND ' . join(' AND ', $rules);
-
-		$query = 'SELECT count(page) as popularity, page, MAX(time) as time FROM '.PFX.'txp_log WHERE 1=1'.$ip.$thisicle.$rules.' AND status = 200 GROUP BY page ORDER BY '.$sort;
-		$rs = getRows($query, $debug);
-
-		// Store the current document in the cache and datestamp it.
-		if ($cache_time > 0) {
-			if ($debug > 1) {
-				dmp('++ DATA CACHED to '.$var_data.' ++');
-			}
-
-			set_pref($var_lastmod, time(), 'smd_lately', PREF_HIDDEN, 'text_input');
-			$fh = fopen($var_data, 'wb');
-			fwrite($fh, serialize($rs));
-			fclose($fh);
-		}
-	}
-
-	if ($debug > 1) {
-		dmp($rs);
-	}
-
-	// Set up counters and create query params.
-	$count = 0;
-	$out = array();
-
-	if ($status) {
-		$status = do_list($status, $delim);
-		$stati = array();
-
-		foreach ($status as $stat) {
-			if (empty($stat)) {
-				continue;
-			} elseif (is_numeric($stat)) {
-				$stati[] = $stat;
-			} else {
-				$stati[] = getStatusNum($stat);
-			}
-		}
-
-		$status = " AND Status IN (".join(',', $stati).")";
-	}
-
-	switch ($time) {
-		case "":
-		case "any":
-			$time = "";
-			break;
-		case "future":
-			$time = " AND Posted > NOW()";
-			break;
-		default:
-			$time = " AND Posted < NOW()";
-			break;
-	}
-
-	// Process the result set.
-	$articles = array();
-
-	if ($rs) {
-		// Loop until limit reached.
-		foreach ($rs as $row) {
-			if ($limit > 0 && is_numeric($limit) && $count == $limit) {
-				break;
-			}
-
-			if ($permlink_mode == 'messy') {
-				preg_match('@id=(\d+)@', $row['page'], $matches);
-
-				// Add 'id' to trick array_multisort into believing it's an associative array.
-				$da_url = isset($matches[1]) ? 'id'.$matches[1] :  '';
-			} else {
-				// Strip off any query params.
-				$justurl = explode('?',$row['page']);
-				$urlpart = explode('/', rtrim($justurl[0],"/"));
-				$da_url = $urlpart[count($urlpart)-1];
-			}
-
-			if ($da_url) {
-				if (isset($articles[$da_url])) {
-					$articles[$da_url][0] += $row['popularity'];
-					if ($row['time'] > $articles[$da_url][1]) {
-						$articles[$da_url][1] = $row['time'];
-					}
-				} else {
-					$articles[$da_url] = array(
-						$row['popularity'],
-						$row['time'],
-					);
-
-					$count++;
-				}
-			}
-		}
-
-		if ($debug > 1) {
-			echo '++ ORIGINAL LOG LIST ++';
-			dmp($articles);
-		}
-
-		if ($articles) {
-			// If sorting by popularity, re-order the results in case they've been subsequently aggregated.
-
-			if ($sortBits[0] == 'popularity') {
-				foreach ($articles as $key => $row) {
-					$apop[$key]  = $row[0];
-					$atime[$key] = $row[1];
-				}
-
-				$dir = ($sortBits[1] == 'asc') ? SORT_ASC : SORT_DESC;
-				array_multisort($apop, $dir, $atime, $dir, $articles);
-			}
-
-			if ($permlink_mode == 'messy') {
-				// Strip off the fake 'id' identifiers in the array keys.
-				foreach ($articles as $key => $row) {
-					$tmp[substr($key, 2)] = $row;
-				}
-
-				$articles = $tmp;
-			}
-
-			if ($debug > 2) {
-				echo '++ FINAL LOG LIST++';
-				dmp($articles);
-			}
-
-			$darticles = safe_rows('*, unix_timestamp(Posted) as uPosted, unix_timestamp(Expires) as uExpires, unix_timestamp(LastMod) as uLastMod', 'textpattern', "$match_col IN ('" . join("','", array_keys($articles)) . "')".$status.$time, $debug);
-
-			// Refactor the article list keyed on url_title or ID (depending on permlink_mode).
-			$urlicles = array();
-
-			foreach ($darticles as $darticle) {
-				$urlicles[$darticle[$match_col]] = $darticle;
-			}
-
-			// Iterate over the _original_ article list (from the first query)
-			// and pluck out the relevant article contents.
-			foreach ($articles as $urlTitle => $darticle) {
-				if (isset($urlicles[$urlTitle])) {
-					$theTime = strtotime($darticle[1]);
-					$aktiv = $thisarticle && $show_current && $urlTitle == $curr_art;
-					$replacements = array(
-						"{smd_lately_active}"         => (($aktiv) ? ' class="'.$active_class.'"' : ''),
-						"{smd_lately_activeclass}"    => (($aktiv) ? $active_class : ''),
-						"{smd_lately_count}"          => $darticle[0],
-						"{smd_lately_fulldate}"       => $darticle[1],
-						"{smd_lately_date}"           => strftime("%F", $theTime),
-						"{smd_lately_date_year}"      => strftime("%Y", $theTime),
-						"{smd_lately_date_month}"     => strftime("%m", $theTime),
-						"{smd_lately_date_monthname}" => strftime("%B", $theTime),
-						"{smd_lately_date_day}"       => strftime("%d", $theTime),
-						"{smd_lately_date_dayname}"   => strftime("%A", $theTime),
-						"{smd_lately_time}"           => strftime("%T", $theTime),
-						"{smd_lately_time_hour}"      => strftime("%H", $theTime),
-						"{smd_lately_time_minute}"    => strftime("%M", $theTime),
-						"{smd_lately_time_second}"    => strftime("%S", $theTime),
-					);
-
-					article_push();
-					populateArticleData($urlicles[$urlTitle]);
-					$out[] = ($thing) ? parse(strtr($thing, $replacements)) : (($form) ? parse_form(strtr($form, $replacements)) : href( $urlicles[$urlTitle]['Title'], permlinkurl($urlicles[$urlTitle]), $replacements['{smd_lately_active}'] ));
-					article_pop();
-				}
-			}
-		}
-	}
-
-	return ($out) ? doLabel($label, $labeltag).doWrap($out, $wraptag, $break, $class) : '';
+    global $prefs, $thisarticle, $permlink_mode;
+
+    // Check logging is on.
+    if ( $prefs['logging'] != 'all') {
+        trigger_error(smd_rv_gTxt('logging_enabled'), E_USER_NOTICE);
+        return;
+    }
+
+    extract(lAtts(array(
+        'by'           => 'SMD_CURRENT', // Default is the IP address of the current visitor. Can be empty for 'all' visitors
+        'section'      => '',
+        'status'       => '',
+        'time'         => 'past',
+        'include'      => '',
+        'exclude'      => '',
+        'within'       => '',
+        'from'         => '',
+        'to'           => '',
+        'show_current' => 0,
+        'form'         => '',
+        'limit'        => 10,
+        'sort'         => 'time desc',
+        'wraptag'      => '',
+        'break'        => 'br',
+        'class'        => __FUNCTION__,
+        'active_class' => 'active',
+        'label'        => '',
+        'labeltag'     => '',
+        'delim'        => ',',
+        'param_delim'  => ':',
+        'silent'       => 0,
+        'cache_time'   => '0', // in seconds
+        'hashsize'     => '6:5',
+        'debug'        => 0,
+    ), $atts));
+
+    // Make a unique hash value for this instance so the results can be cached in a file.
+    $uniq = '';
+    $md5 = md5($by.$sort.$section.$within.$from.$to.$include.$exclude);
+
+    list($hashLen, $hashSkip) = explode(':', $hashsize);
+
+    for ($idx = 0, $cnt = 0; $cnt < $hashLen; $cnt++, $idx = (($idx+$hashSkip) % strlen($md5))) {
+        $uniq .= $md5[$idx];
+    }
+
+    $var_lastmod = 'smd_lately_lmod_'.$uniq;
+    $var_data = find_temp_dir().DS.'smd_lately_data_'.$uniq;
+    $lastmod = get_pref($var_lastmod, 0);
+    $read_cache = (($cache_time > 0) && ((time() - $lastmod) < $cache_time)) ? true : false;
+
+    // Sanitize sort options.
+    $sortBits = do_list($sort, " ");
+    $sortBits[0] = (empty($sortBits[0])) ? 'time' : $sortBits[0];
+
+    if (!isset($sortBits[1]) || !in_array($sortBits[1], array('desc', 'asc'))) {
+        $sortBits[1] = 'desc';
+        $sort = join(" ", $sortBits);
+    }
+
+    // Make a note of the current article if appropriate.
+    if ($permlink_mode=='messy') {
+        $match_col = 'ID';
+        $match_tacol = 'thisid';
+        $match_prefix = 'id=';
+    } else {
+        $match_col = $match_tacol = 'url_title';
+        $match_prefix = '';
+    }
+
+    $curr_art = ($thisarticle) ? $thisarticle[$match_tacol] : '';
+
+    if ($read_cache) {
+        $rs = unserialize(file_get_contents($var_data));
+    } else {
+        // IP address clause
+        $ip = '';
+
+        if ($by == 'SMD_CURRENT') {
+            if (function_exists('remote_addr')) {
+                $ip = remote_addr();
+            } else {
+                $ip = serverSet('REMOTE_ADDR');
+
+                if (($ip == '127.0.0.1' || $ip == serverSet('SERVER_ADDR')) && serverSet('HTTP_X_FORWARDED_FOR')) {
+                    $ips = explode(', ', serverSet('HTTP_X_FORWARDED_FOR'));
+                    $ip = $ips[0];
+                }
+            }
+
+            if ($ip) {
+                $ip = " AND ip='".doSlash($ip)."'";
+            }
+        } elseif ($by == 'SMD_ALL') {
+            $by = '';
+        }
+
+        // Make sure we don't include the current article
+        // Note the regexp is anchored to the end with a $.
+        $thisicle = '';
+
+        if (isset($thisarticle)) {
+            if (!$show_current) {
+                $urltitle = $thisarticle[$match_tacol];
+                $thisicle = ($urltitle) ? " AND page NOT LIKE '%$match_prefix$urltitle'" : '';
+            }
+        }
+
+        // Filter out article_list pages and other (un)desirables.
+        $rules = array(
+            "page NOT LIKE '/'", // Goodbye front page
+            "page NOT LIKE ''",
+            "page NOT LIKE '%q=%'", // Goodbye searches
+            "page NOT LIKE '%c=%'", // Goodbye cat lists
+            "page NOT LIKE '%pg=%'", // Goodbye multi-page lists
+            "page NOT LIKE '%category=%'",
+            "page NOT LIKE '/category/%'",
+            "page NOT LIKE '%author=%'",
+            "page NOT LIKE '/author/%'",
+        );
+
+        if ($section) {
+            $section = do_list($section, $delim);
+            $subrule = array();
+
+            foreach ($section as $sec) {
+                if ($permlink_mode == 'messy') {
+                    $subrule[] = "page LIKE '%s=$sec%'";
+                } else {
+                    $subrule[] = "page LIKE '/$sec%' AND page NOT REGEXP '^/$sec/?$'";
+                }
+            }
+
+            $subrule = '(' . join(' OR ', $subrule) . ')';
+            $rules[] = $subrule;
+        } else {
+            // Exclude any rows that just contain the section (i.e. article list pages).
+            $allSecs = safe_column('name', 'txp_section', "1=1", $debug);
+            $rules[] = "page NOT REGEXP '^/(" . join("|", $allSecs) . ")/?$'";
+        }
+
+        // Process any manual includes.
+        if ($include) {
+            $include = do_list($include, $delim);
+            $subrules = array();
+
+            foreach ($include as $inc) {
+                $regex = $like = false;
+                $column = 'ip';
+                $parts = do_list($inc, $param_delim);
+                $match = array_pop($parts);
+
+                foreach ($parts as $part) {
+                    switch ($part) {
+                        case "ip":
+                        case "host":
+                        case "page":
+                        case "refer":
+                        case "method":
+                            $column = $part;
+                            break;
+                        case "like":
+                            $like = true;
+                            break;
+                        case "regex":
+                            $regex = true;
+                            break;
+                    }
+                }
+
+                $subrules[] = $regex ? "$column REGEXP '".doSlash(preg_quote($match))."'" : (($like) ? "$column LIKE '%".doSlash($match)."%'" : "$column = '".doSlash($match)."'");
+            }
+
+            $rules[] = '('.join(' OR ', $subrules).')';
+        }
+
+        // Process any manual excludes.
+        if ($exclude) {
+            $exclude = do_list($exclude, $delim);
+
+            foreach ($exclude as $exc) {
+                $regex = $like = false;
+                $column = 'ip';
+                $parts = do_list($exc, $param_delim);
+                $match = array_pop($parts);
+
+                foreach ($parts as $part) {
+                    switch ($part) {
+                        case "ip":
+                        case "host":
+                        case "page":
+                        case "refer":
+                        case "method":
+                            $column = $part;
+                            break;
+                        case "like":
+                            $like = true;
+                            break;
+                        case "regex":
+                            $regex = true;
+                            break;
+                    }
+                }
+
+                $rules[] = $regex ? "$column NOT REGEXP '".doSlash(preg_quote($match))."'" : (($like) ? "$column NOT LIKE '%".doSlash($match)."%'" : "$column != '".doSlash($match)."'");
+            }
+        }
+
+        // Filter by time frame.
+        $fromstamp = $tostamp = $diffstamp = 0;
+        $thismonth = date('F', mktime(0,0,0,strftime('%m'),1));
+        $thisyear = strftime('%Y');
+
+        if ($from) {
+            $from = str_replace("?month", $thismonth, $from);
+            $from = str_replace("?year", $thisyear, $from);
+            $fromstamp = strtotime($from);
+
+            if ($fromstamp) {
+                $rules[] = "UNIX_TIMESTAMP(time) > $fromstamp";
+            } else {
+                if (!$silent) {
+                    trigger_error(smd_rv_gTxt('invalid_ts', array("{where}" => 'from')), E_USER_NOTICE);
+                }
+            }
+        }
+
+        if ($to) {
+            $to = str_replace("?month", $thismonth, $to);
+            $to = str_replace("?year", $thisyear, $to);
+            $tostamp = strtotime($to);
+
+            if ($tostamp) {
+                $rules[] = "UNIX_TIMESTAMP(time) < $tostamp";
+            } else {
+                if (!$silent) {
+                    trigger_error(smd_rv_gTxt('invalid_ts', array("{where}" => 'to')), E_USER_NOTICE);
+                }
+            }
+        }
+
+        if ($within) {
+            if ($tostamp) {
+                $refstamp = $tostamp;
+                $refdir = '-';
+            } elseif ($fromstamp) {
+                $refstamp = $fromstamp;
+                $refdir = '+';
+            } else {
+                $refstamp = time();
+                $refdir = '-';
+            }
+
+            $diffstamp = strtotime($refdir.$within, $refstamp);
+
+            if ($diffstamp) {
+                $rules[] = "UNIX_TIMESTAMP(time) ".(($refdir == '-') ? '> ' : '< ' ).$diffstamp;
+            } else {
+                if (!$silent) {
+                    trigger_error(smd_rv_gTxt('invalid_ts', array("{where}" => 'within')), E_USER_NOTICE);
+                }
+            }
+        }
+
+        if ($debug) {
+            echo "++ smd_lately RULES ++";
+            dmp($rules);
+
+            if ($from || $to || $within) {
+                echo "++ TIME WINDOW ++";
+                if ($from) {
+                    dmp("FROM: " . date('Y-M-d H:i:s', $fromstamp));
+                }
+
+                if ($within) {
+                    dmp("WITHIN: " . date('Y-M-d H:i:s', $diffstamp), $within . (($refdir == '-') ? " BEFORE TO DATE" : " AFTER FROM DATE"));
+                }
+
+                if ($to) {
+                    dmp("TO: ". date('Y-M-d H:i:s', $tostamp));
+                } else {
+                    dmp("TO: ". date('Y-M-d H:i:s', time()));
+                }
+            }
+        }
+
+        $rules = ' AND ' . join(' AND ', $rules);
+
+        $query = 'SELECT count(page) as popularity, page, MAX(time) as time FROM '.PFX.'txp_log WHERE 1=1'.$ip.$thisicle.$rules.' AND status = 200 GROUP BY page ORDER BY '.$sort;
+        $rs = getRows($query, $debug);
+
+        // Store the current document in the cache and datestamp it.
+        if ($cache_time > 0) {
+            if ($debug > 1) {
+                dmp('++ DATA CACHED to '.$var_data.' ++');
+            }
+
+            set_pref($var_lastmod, time(), 'smd_lately', PREF_HIDDEN, 'text_input');
+            $fh = fopen($var_data, 'wb');
+            fwrite($fh, serialize($rs));
+            fclose($fh);
+        }
+    }
+
+    if ($debug > 1) {
+        dmp($rs);
+    }
+
+    // Set up counters and create query params.
+    $count = 0;
+    $out = array();
+
+    if ($status) {
+        $status = do_list($status, $delim);
+        $stati = array();
+
+        foreach ($status as $stat) {
+            if (empty($stat)) {
+                continue;
+            } elseif (is_numeric($stat)) {
+                $stati[] = $stat;
+            } else {
+                $stati[] = getStatusNum($stat);
+            }
+        }
+
+        $status = " AND Status IN (".join(',', $stati).")";
+    }
+
+    switch ($time) {
+        case "":
+        case "any":
+            $time = "";
+            break;
+        case "future":
+            $time = " AND Posted > NOW()";
+            break;
+        default:
+            $time = " AND Posted < NOW()";
+            break;
+    }
+
+    // Process the result set.
+    $articles = array();
+
+    if ($rs) {
+        // Loop until limit reached.
+        foreach ($rs as $row) {
+            if ($limit > 0 && is_numeric($limit) && $count == $limit) {
+                break;
+            }
+
+            if ($permlink_mode == 'messy') {
+                preg_match('@id=(\d+)@', $row['page'], $matches);
+
+                // Add 'id' to trick array_multisort into believing it's an associative array.
+                $da_url = isset($matches[1]) ? 'id'.$matches[1] :  '';
+            } else {
+                // Strip off any query params.
+                $justurl = explode('?',$row['page']);
+                $urlpart = explode('/', rtrim($justurl[0],"/"));
+                $da_url = $urlpart[count($urlpart)-1];
+            }
+
+            if ($da_url) {
+                if (isset($articles[$da_url])) {
+                    $articles[$da_url][0] += $row['popularity'];
+                    if ($row['time'] > $articles[$da_url][1]) {
+                        $articles[$da_url][1] = $row['time'];
+                    }
+                } else {
+                    $articles[$da_url] = array(
+                        $row['popularity'],
+                        $row['time'],
+                    );
+
+                    $count++;
+                }
+            }
+        }
+
+        if ($debug > 1) {
+            echo '++ ORIGINAL LOG LIST ++';
+            dmp($articles);
+        }
+
+        if ($articles) {
+            // If sorting by popularity, re-order the results in case they've been subsequently aggregated.
+
+            if ($sortBits[0] == 'popularity') {
+                foreach ($articles as $key => $row) {
+                    $apop[$key]  = $row[0];
+                    $atime[$key] = $row[1];
+                }
+
+                $dir = ($sortBits[1] == 'asc') ? SORT_ASC : SORT_DESC;
+                array_multisort($apop, $dir, $atime, $dir, $articles);
+            }
+
+            if ($permlink_mode == 'messy') {
+                // Strip off the fake 'id' identifiers in the array keys.
+                foreach ($articles as $key => $row) {
+                    $tmp[substr($key, 2)] = $row;
+                }
+
+                $articles = $tmp;
+            }
+
+            if ($debug > 2) {
+                echo '++ FINAL LOG LIST++';
+                dmp($articles);
+            }
+
+            $darticles = safe_rows('*, unix_timestamp(Posted) as uPosted, unix_timestamp(Expires) as uExpires, unix_timestamp(LastMod) as uLastMod', 'textpattern', "$match_col IN ('" . join("','", array_keys($articles)) . "')".$status.$time, $debug);
+
+            // Refactor the article list keyed on url_title or ID (depending on permlink_mode).
+            $urlicles = array();
+
+            foreach ($darticles as $darticle) {
+                $urlicles[$darticle[$match_col]] = $darticle;
+            }
+
+            // Iterate over the _original_ article list (from the first query)
+            // and pluck out the relevant article contents.
+            foreach ($articles as $urlTitle => $darticle) {
+                if (isset($urlicles[$urlTitle])) {
+                    $theTime = strtotime($darticle[1]);
+                    $aktiv = $thisarticle && $show_current && $urlTitle == $curr_art;
+                    $replacements = array(
+                        "{smd_lately_active}"         => (($aktiv) ? ' class="'.$active_class.'"' : ''),
+                        "{smd_lately_activeclass}"    => (($aktiv) ? $active_class : ''),
+                        "{smd_lately_count}"          => $darticle[0],
+                        "{smd_lately_fulldate}"       => $darticle[1],
+                        "{smd_lately_date}"           => strftime("%F", $theTime),
+                        "{smd_lately_date_year}"      => strftime("%Y", $theTime),
+                        "{smd_lately_date_month}"     => strftime("%m", $theTime),
+                        "{smd_lately_date_monthname}" => strftime("%B", $theTime),
+                        "{smd_lately_date_day}"       => strftime("%d", $theTime),
+                        "{smd_lately_date_dayname}"   => strftime("%A", $theTime),
+                        "{smd_lately_time}"           => strftime("%T", $theTime),
+                        "{smd_lately_time_hour}"      => strftime("%H", $theTime),
+                        "{smd_lately_time_minute}"    => strftime("%M", $theTime),
+                        "{smd_lately_time_second}"    => strftime("%S", $theTime),
+                    );
+
+                    article_push();
+                    populateArticleData($urlicles[$urlTitle]);
+                    $out[] = ($thing) ? parse(strtr($thing, $replacements)) : (($form) ? parse_form(strtr($form, $replacements)) : href( $urlicles[$urlTitle]['Title'], permlinkurl($urlicles[$urlTitle]), $replacements['{smd_lately_active}'] ));
+                    article_pop();
+                }
+            }
+        }
+    }
+
+    return ($out) ? doLabel($label, $labeltag).doWrap($out, $wraptag, $break, $class) : '';
 }
 
 // ------------------------
 // Plugin-specific replacement strings - localise as required.
 function smd_rv_gTxt($what, $atts = array())
 {
-	$lang = array(
-		'invalid_ts' => 'Invalid date/time info in "{where}" attribute.',
-		'logging_enabled' => 'Logging must be set to "All hits" in Basic Pefs.',
-	);
+    $lang = array(
+        'invalid_ts' => 'Invalid date/time info in "{where}" attribute.',
+        'logging_enabled' => 'Logging must be set to "All hits" in Basic Pefs.',
+    );
 
-	return strtr($lang[$what], $atts);
+    return strtr($lang[$what], $atts);
 }
 # --- END PLUGIN CODE ---
 if (0) {
