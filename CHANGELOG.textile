@@ -1,0 +1,51 @@
+h1. Changelog
+
+h2. 0.4.0 - 2020-03-19
+
+* For Txp 4.8.0+.
+* Fix find_temp_dir() error (thanks, Robert Newell).
+* Fix missing column ip warnings.
+* Register tag.
+* Add Textpack.
+
+h2. 0.3.1 - 2014-03-13
+
+* Add filtering by method (thanks, kees-b).
+
+h2. 0.3.0 - 2010-09-10
+
+* Add @cache_time@ (thanks, pieman).
+* Now only uses two queries regardless of number of results.
+* Improve messy URL support.
+* Fix time display problems using @NOW()@ and added @active_class@ (both thanks, jelle).
+
+h2. 0.2.2 - 2010-05-28
+
+* Fix default @class@ attribute and remove trailing slash in log pages (thanks, maniqui).
+
+h2. 0.2.1 - 2010-05-10
+
+* Add @from@, @to@ and @within@ (thanks, the_ghost).
+* Add @like@ matching.
+* Remove some power-hungry REGEXP operators in favour of LIKE to improve performance.
+
+h2. 0.2.0 - 2010-02-19
+
+* Add @status@, @time@, @include@, @exclude@, @delim@, and @param_delim@.
+* Article list now filtered by @time="past"@ and @status="4"@ by default.
+
+h2. 0.1.3 - 2009-09-11
+
+* Add replacement vars.
+
+h2. 0.1.2 - 2009-08-10
+
+* Never assume what remains in the filtered URL is actually an article.
+
+h2. 0.1.1 - 2009-07-24
+
+* Make backwards compatible with TXP 4.0.8.
+
+h2. 0.1.0 - 2009-07-23
+
+* Initial release

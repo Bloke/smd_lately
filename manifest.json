@@ -1,0 +1,11 @@
+{
+  "name": "smd_lately",
+  "description": "Show recently viewed/popular articles within Textpattern CMS",
+  "version": "0.4.0",
+  "type": 0,
+  "author": "Stef Dawson",
+  "author_uri": "https://stefdawson.com/",
+  "order": 5,
+  "flags": 0,
+  "help": {"file" : ["./README.textile"]}
+}

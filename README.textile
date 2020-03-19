@@ -1,0 +1,140 @@
+h1. smd_lately
+
+List the most recent articles viewed by all visitors. Can also order by popularity (most viewed).
+
+h2(#features). Features
+
+* List recently viewed articles: useful on product pages or in a shopping cart
+* Show a list of the most popular articles
+* Limit either list by section or arbitrary value (host, page, referer) if you wish
+* Uses the visitor logs
+* Automatically filters out article list pages, category, author or search visits
+
+h2(#install). Installation / Uninstallation
+
+p(required). Requires Logging to be set to _All hits_ (will issue a warning if not)
+
+Download the plugin from either "textpattern.org":http://textpattern.org/plugins/1110/smd_lately, or the "software page":https://stefdawson.com/sw, paste the code into the TXP Admin -> Plugins pane, install and enable the plugin. Visit the "forum thread":https://forum.textpattern.com/viewtopic.php?id=31341 for more info or to report on the success or otherwise of the plugin.
+
+To uninstall, simply delete from the Admin -> Plugins page.
+
+h2(#np). @<txp:smd_lately>@
+
+Place this tag anywhere you wish to display a list of recently viewed articles. The tag may be used as a single tag (with an optional form) or as a container. Inside the form/container you can use any standard article tags -- @<txp:title />@, @<txp:excerpt />@, @<txp:posted />@, etc -- to format the list however you like. Without either a form or a container, the plugin displays a hyperlinked title to the article.
+
+The following attributes can be used to modify the plugin's output:
+
+h3(atts). Attributes
+
+h4. Log filtering and sort order attributes
+
+* %section% : choose to show articles only from this list of sections. Default: unset (i.e. from all sections). %(required)Note that you must be using either messy mode or a permlink mode with @/section@ in it to filter by section%
+* %show_current% : Display the article being viewed in the list: 1=Yes; 0=No. Ignored if in an article_list page. Default: 0
+* %include% : ensure that log file entries that match this set of criteria are included in the list. This attribute takes up to 3 parameters, separated by @param_delim@ (default is the colon).
+** First is the name of a field to match against. Choose from @host@ (the default), @page@ or @refer@
+** Second is an optional parameter to indicate whether the match is a regular expression, wild or an exact match. Use @regex@ if you wish this match to be considered as a regular expression, specify @like@ if you want to check if the text is a simple 'wild' match (it's similar to, but quicker than, a regex), or omit the parameter entirely if you want an 'exact match' to be considered
+** Finally, specify the text you want to match with that field. For example, @include="host:like:www.domain.com"@ would only include results that had @www.domain.com@ somewhere in their host name. Using @include="192.168.2.200"@ would show pages from any internal meddling you may have done on your local XAMPP server. Note that if you omit parameters 1 and 2, the plugin uses the defaults
+* %exclude% : ensure that log file entries that match this set of criteria are *not* included in the list. Use this in the same manner as @include@
+* %from% : date / time stamp (written in English) of the _earliest_ date to consider in the logs. You may specify @?month@ and/or @?year@ to have the plugin replace it with the current month/year. Default: unset
+* %to% : date / time stamp (written in English) of the _most recent_ date to consider in the logs. You may specify @?month@ and/or @?year@ to have the plugin replace it with the current month/year. Default: current time
+* %within% : date offset (written in English) which specifies a time window in which you are interested. For example @within="36 hours"@ would show results from the last 36 hours. If you specify a @to@ date, the value of @within@ is subtracted from it. If you specify a @from@ date, the value of @within@ is _added_ to it. If you specify both @from@ and @to@, the offset is calculated relative to the @to@ attribute. Default: unset
+* %sort% : order the list by either @time@, or @popularity@. Add @asc@ or @desc@ to choose ascending or descending sort order. Default: @time desc@
+* %limit% : show this many items in the list. 0 = unlimited. Default: 10
+
+h4. Article filter attributes
+
+* %status% : Only articles with one of these listed status values are displayed in the list. Default: 4 (@live@)
+* %time% : If an article in the log has its posted timestamp in the time period indicated in this attribute, it will be displayed. Choose from @any@, @future@ or @past@ (the default). Leaving this at its default prevents any future-dated articles that you may be previewing from showing up in the list
+
+h4. Display attributes
+
+* %wraptag% : the (X)HTML tag, without its brackets, to wrap the list with. Default: unset
+* %class% : the CSS class name to apply to the wraptag. Default: @smd_lately@
+* %active_class% : the CSS class name to set as the active class when @show_current="1"@ is used. Default: @active@. See "replacement variables":#reps for details on how to actually insert this into your markup
+* %break% : the (X)HTML tag, without its brackets, to wrap each item with. Default: @br@
+* %label% : the label text to add to the top of the list. Default: unset
+* %labeltag% : the (X)HTML tag, without its brackets, to wrap the label with. Default: unset
+
+h4. Plugin configuration attributes
+
+* %form% : if you prefer to use a form instead of the container to hold your markup and tags, specify it here. Default: unset
+* %delim% : the delimiter to use between items in attribute lists (@section@, @include@, @exclude@, @status@). Default: comma
+* %param_delim% : the delimiter to use between parameters inside an attribute (@include@, @exclude@). Default: colon
+* %cache_time% : if set, the results are cached in a temporary file for the designated number of seconds. Subsequent calls to smd_lately (e.g. refreshing the page) will read the cached information instead of trawling the logs, thus cutting down on server load. After @cache_time@ seconds have elapsed, the next page refresh will cause the information to be recalculated. Note that the file name of the cached data is of the form @smd_lately_data_ABCDEF@ where ABCDEF is a unique string that applies to this particular smd_lately tag. If you alter the attributes there is a good chance it will create a new temporary file and the plugin does not clean up after itself. For this reason it's probably a good idea to play with the plugin and set your attributes up before setting @cache_time@
+
+h3(atts#reps). Replacement variables
+
+In addition to regular TXP article tags, you may employ any of the following codes in your form/container to display the corresponding value:
+
+* %{smd_lately_activeclass}% : the raw classname you specified in your @active_class@ attribute: only set if current article matches
+* %{smd_lately_active}% : a full @ class="class_name"@ string: only set if current article matches
+* %{smd_lately_count}% : the number of times the article has been accessed
+* %{smd_lately_fulldate}% : the article's last access date stamp
+* %{smd_lately_date}% : the article's last access date
+* %{smd_lately_date_year}% : the article's last access year
+* %{smd_lately_date_month}% : the article's last access month (number)
+* %{smd_lately_date_monthname}% : the article's last access month (full name)
+* %{smd_lately_date_day}% : the article's last access day (number)
+* %{smd_lately_date_dayname}% : the article's last access day (full name)
+* %{smd_lately_time}% : the article's last access time stamp
+* %{smd_lately_time_hour}% : the article's last access hour
+* %{smd_lately_time_minute}% : the article's last access minute
+* %{smd_lately_time_second}% : the article's last access second
+
+h3(#caveats). Caveats
+
+Since the plugin uses the TXP logs you need to make sure they are being used (Admin->Basic Prefs). It also means that any visitors using an anonymising proxy will get spurious (or no) results. Their loss.
+
+h2(examples). Examples
+
+h3(#eg1). Example 1: recent article list for all visitors
+
+bc. <txp:smd_lately />
+
+h3(#eg2). Example 2: recent articles for all visitors in particular sections
+
+bc. <txp:smd_lately section="archive, about" />
+
+Only shows the articles viewed from the 'archive' and 'about' sections.
+
+h3(#eg3). Example 3: most popular articles across the site
+
+bc. <txp:smd_lately sort="popularity"  />
+
+h3(#eg4). Example 4: tag as a container
+
+bc. <txp:smd_lately
+     wraptag="ul" break="li" limit="6">
+   <txp:permlink><txp:title /></txp:permlink> [{smd_lately_count}]<br />
+   <txp:posted /> by <txp:author />
+</txp:smd_lately>
+
+Shows the 6 most recent articles accessed by any site visitor. The unordered list output contains a permlinked title, the date the article was posted and the article's author.
+
+h3(#eg5). Example 5: filtering by host
+
+bc. <txp:smd_lately
+     wraptag="ul" break="li" limit="6"
+     exclude="host:id3456-bt.custref.com, refer:">
+   <txp:permlink><txp:title /></txp:permlink> [{smd_lately_count}]<br />
+</txp:smd_lately>
+
+Shows only records that have some referer information (i.e. we are excluding entries where refer = empty) and those that have NOT been accessed via the unique hostname given to you by your ISP -- assuming @id3456-bt.custref.com@ shows up in the 'host' column whenever you access a TXP article.
+
+If you adjusted the exclude attribute to read @exclude="host:like:bt.custref"@ then any log entries with @bt.custref@ in them would be excluded from consideration.
+
+h3(#eg6). Example 6: filtering by time range
+
+bc. <txp:smd_lately
+     wraptag="ul" break="li"
+     from="?year-?month-01">
+   <txp:permlink><txp:title /></txp:permlink> [{smd_lately_count}]<br />
+</txp:smd_lately>
+
+Shows only the hits generated from the first day of the current month until now. The recent list will thus 'reset' on the 1st of every month.
+
+If you removed the @from@ attribute and used @within="30 days"@ you would instead see a 'rolling' total of the hits in the previous 30 days (you could also use @within="1 month"@ to get roughly the same result).
+
+h2(#author). Author / credits
+
+"Stef Dawson":https://stefdawson.com/contact.

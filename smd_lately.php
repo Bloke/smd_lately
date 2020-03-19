@@ -530,10 +530,6 @@ h2(#features). Features
 * Uses the visitor logs
 * Automatically filters out article list pages, category, author or search visits
 
-h2(#author). Author / credits
-
-"Stef Dawson":https://stefdawson.com/contact.
-
 h2(#install). Installation / Uninstallation
 
 p(required). Requires Logging to be set to _All hits_ (will issue a warning if not)
@@ -658,6 +654,10 @@ bc. <txp:smd_lately
 Shows only the hits generated from the first day of the current month until now. The recent list will thus 'reset' on the 1st of every month.
 
 If you removed the @from@ attribute and used @within="30 days"@ you would instead see a 'rolling' total of the hits in the previous 30 days (you could also use @within="1 month"@ to get roughly the same result).
+
+h2(#author). Author / credits
+
+"Stef Dawson":https://stefdawson.com/contact.
 
 # --- END PLUGIN HELP ---
 -->
