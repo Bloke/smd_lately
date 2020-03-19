@@ -54,18 +54,12 @@ $plugin['flags'] = '0';
 // #@language ISO-LANGUAGE-CODE
 // abc_string_name => Localized String
 
-/** Uncomment me, if you need a textpack
 $plugin['textpack'] = <<<EOT
-#@admin
-#@language en-gb
-abc_sample_string => Sample String
-abc_one_more => One more
-#@language de-de
-abc_sample_string => Beispieltext
-abc_one_more => Noch einer
+#@public
+#@language en, en-gb, en-us
+smd_lately_invalid_ts => Invalid date/time info in "{where}" attribute.
+smd_lately_logging_enabled => Logging must be set to "All hits" in Admin->Pefs.
 EOT;
-**/
-// End of textpack
 
 if (!defined('txpinterface'))
         @include_once('zem_tpl.php');
@@ -92,7 +86,7 @@ function smd_lately ($atts, $thing = null)
 
     // Check logging is on.
     if ( $prefs['logging'] != 'all') {
-        trigger_error(smd_rv_gTxt('logging_enabled'), E_USER_NOTICE);
+        trigger_error(gTxt('smd_lately_logging_enabled'), E_USER_NOTICE);
         return;
     }
 
@@ -285,7 +279,7 @@ function smd_lately ($atts, $thing = null)
                 $rules[] = "UNIX_TIMESTAMP(time) > $fromstamp";
             } else {
                 if (!$silent) {
-                    trigger_error(smd_rv_gTxt('invalid_ts', array("{where}" => 'from')), E_USER_NOTICE);
+                    trigger_error(gTxt('smd_lately_invalid_ts', array("{where}" => 'from')), E_USER_NOTICE);
                 }
             }
         }
@@ -299,7 +293,7 @@ function smd_lately ($atts, $thing = null)
                 $rules[] = "UNIX_TIMESTAMP(time) < $tostamp";
             } else {
                 if (!$silent) {
-                    trigger_error(smd_rv_gTxt('invalid_ts', array("{where}" => 'to')), E_USER_NOTICE);
+                    trigger_error(gTxt('smd_lately_invalid_ts', array("{where}" => 'to')), E_USER_NOTICE);
                 }
             }
         }
@@ -322,7 +316,7 @@ function smd_lately ($atts, $thing = null)
                 $rules[] = "UNIX_TIMESTAMP(time) ".(($refdir == '-') ? '> ' : '< ' ).$diffstamp;
             } else {
                 if (!$silent) {
-                    trigger_error(smd_rv_gTxt('invalid_ts', array("{where}" => 'within')), E_USER_NOTICE);
+                    trigger_error(gTxt('smd_lately_invalid_ts', array("{where}" => 'within')), E_USER_NOTICE);
                 }
             }
         }
@@ -519,25 +513,11 @@ function smd_lately ($atts, $thing = null)
 
     return ($out) ? doLabel($label, $labeltag).doWrap($out, $wraptag, $break, $class) : '';
 }
-
-// ------------------------
-// Plugin-specific replacement strings - localise as required.
-function smd_rv_gTxt($what, $atts = array())
-{
-    $lang = array(
-        'invalid_ts' => 'Invalid date/time info in "{where}" attribute.',
-        'logging_enabled' => 'Logging must be set to "All hits" in Basic Pefs.',
-    );
-
-    return strtr($lang[$what], $atts);
-}
 # --- END PLUGIN CODE ---
 if (0) {
 ?>
 <!--
 # --- BEGIN PLUGIN HELP ---
-notextile. <div id="smd_help">
-
 h1. smd_lately
 
 List the most recent articles viewed by all visitors. Can also order by popularity (most viewed).
@@ -679,19 +659,6 @@ Shows only the hits generated from the first day of the current month until now.
 
 If you removed the @from@ attribute and used @within="30 days"@ you would instead see a 'rolling' total of the hits in the previous 30 days (you could also use @within="1 month"@ to get roughly the same result).
 
-h3(#changelog). Changelog
-
-* 23 Jul 09 | 0.10 | Initial release
-* 24 Jul 09 | 0.11 | Made backwards compatible with TXP 4.0.8
-* 10 Aug 09 | 0.12 | Never assume what remains in the filtered URL is actually an article
-* 11 Sep 09 | 0.13 | Added replacement vars
-* 19 Feb 10 | 0.20 | Added @status@, @time@, @include@, @exclude@, @delim@, and @param_delim@ ; article list now filtered by @time="past"@ and @status="4"@ by default
-* 10 May 10 | 0.21 | Added @from@, @to@ and @within@ (thanks the_ghost) ; added @like@ matching ; removed some power-hungry REGEXP operators in favour of LIKE to improve performance
-* 28 May 10 | 0.22 | Fixed default @class@ attribute and removed trailing slash in log pages (thanks maniqui)
-* 10 Sep 10 | 0.30 | Added @cache_time@ (thanks pieman) ; now only uses two queries regardless of number of results ; improved messy URL support ; fixed time display problems using @NOW()@ and added @active_class@ (both thanks jelle)
-* 13 Mar 14 | 0.31 | Added filtering by method (thanks kees-b)
-
-notextile. </div>
 # --- END PLUGIN HELP ---
 -->
 <?php
