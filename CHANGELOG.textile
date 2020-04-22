@@ -5,6 +5,7 @@ h2. 0.4.0 - 2020-03-19
 * For Txp 4.8.0+.
 * Fix find_temp_dir() error (thanks, Robert Newell).
 * Fix missing column ip warnings.
+* Remove @by@ attribute, since Txp no longer tracks IP address.
 * Register tag.
 * Add Textpack.
 
